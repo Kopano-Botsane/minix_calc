@@ -11,18 +11,17 @@
 #include <unistd.h>
 #include <minix/endpoint.h>
 #include <minix/syslib.h>
-
-#include "calc.h"
+#include <minix/ipc.h>  /* Include for message type constants */
 
 /* Function prototype */
-static void handle_add_request(calc_message_t *msg, endpoint_t src);
+static void handle_add_request(message *msg, endpoint_t src);
 
 /* Main function of the calc server */
 int main(int argc, char **argv)
 {
     int r;
     endpoint_t src;
-    calc_message_t msg;
+    message msg;
     
     printf("Calc server: starting up\n");
     
@@ -45,7 +44,8 @@ int main(int argc, char **argv)
             default:
                 /* Unknown message type, send error reply */
                 msg.m_type = CALC_ADD_REPLY;
-                msg.status = EINVAL;  /* Invalid argument */
+                msg.m1_i1 = -1;  /* Error result */
+                msg.m1_i2 = EINVAL;  /* Invalid argument error code */
                 r = send(src, &msg);
                 if (r != OK) {
                     printf("Calc server: failed to send error reply to %d\n", src);
@@ -58,17 +58,25 @@ int main(int argc, char **argv)
 }
 
 /* Handle an addition request */
-static void handle_add_request(calc_message_t *msg, endpoint_t src)
+static void handle_add_request(message *msg, endpoint_t src)
 {
     int r;
+    int a, b, result;
+    
+    /* Extract operands from the message */
+    a = msg->m1_i1;  /* First operand */
+    b = msg->m1_i2;  /* Second operand */
     
     printf("Calc server: received add request from %d: %d + %d\n", 
-           src, msg->operand1, msg->operand2);
+           src, a, b);
     
     /* Perform the addition */
-    msg->result = msg->operand1 + msg->operand2;
-    msg->status = 0;  /* Success */
+    result = a + b;
+    
+    /* Prepare the reply message */
     msg->m_type = CALC_ADD_REPLY;
+    msg->m1_i1 = result;  /* Result */
+    msg->m1_i2 = 0;       /* Status: 0 for success */
     
     /* Send the reply back to the sender */
     r = send(src, msg);
@@ -76,6 +84,6 @@ static void handle_add_request(calc_message_t *msg, endpoint_t src)
     if (r != OK) {
         printf("Calc server: failed to send reply to %d: %d\n", src, r);
     } else {
-        printf("Calc server: sent reply to %d: result = %d\n", src, msg->result);
+        printf("Calc server: sent reply to %d: result = %d\n", src, result);
     }
 }
