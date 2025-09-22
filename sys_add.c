@@ -9,19 +9,15 @@
 #include <stdlib.h>
 #include <errno.h>
 
-#include "calc.h"
-
 /* Make the _syscall macro available */
 #define _SYSCALL
 
-/* Declare the message structure */
-message m;
-
 /* The public library function */
-int add(int a, int b)
+int sys_add(int a, int b)
 {
     int r;
     endpoint_t calc_ep;
+    message m;
     
     /* Look up the endpoint of the calc server */
     r = minix_rs_lookup("calc", &calc_ep);
@@ -30,27 +26,21 @@ int add(int a, int b)
         return -1;
     }
     
-    /* Prepare the message */
-    m.m_type = CALC_ADD_REQUEST;
-    m.m_calc_operand1 = a;
-    m.m_calc_operand2 = b;
-    m.m_calc_result = 0;
-    m.m_calc_status = 0;
+    /* Prepare the message - we'll use generic fields for now */
+    m.m_type = ADD;  /* Use the ADD call number we defined in callnr.h */
+    
+    /* Store operands in generic message fields */
+    m.m1_i1 = a;     /* First operand */
+    m.m1_i2 = b;     /* Second operand */
     
     /* Send the message to the calc server and wait for reply */
-    r = _syscall(calc_ep, CALC_ADD_REQUEST, &m);
+    r = _taskcall(calc_ep, ADD, &m);
     
     if (r != OK) {
         errno = r;
         return -1;
     }
     
-    /* Check if the operation was successful */
-    if (m.m_calc_status != 0) {
-        errno = m.m_calc_status;
-        return -1;
-    }
-    
-    /* Return the result */
-    return m.m_calc_result;
+    /* Return the result from the reply message */
+    return m.m1_i1;  /* Result should be in m1_i1 */
 }
