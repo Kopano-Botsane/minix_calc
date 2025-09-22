@@ -1,11 +1,15 @@
-# Makefile for the calc server
-
+# Makefile for the Minix servers
 .include <bsd.own.mk>
 
-PROG=	calc
-SRCS=	main.c
+SUBDIR=	ds inet is mfs pfs pm rs sched vfs vm
 
-DPADD+=	${LIBSYS}
-LDADD+=	-lsys
+.if ${MKIMAGEONLY} == "yes"
+# don't build the experimental servers
+.else
+SUBDIR+=	ext2 hgfs
+.endif
 
-.include <bsd.prog.mk>
+# Add the calc server to the build
+SUBDIR+=	calc
+
+.include <bsd.subdir.mk>
