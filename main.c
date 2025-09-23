@@ -1,65 +1,127 @@
-#include <lib.h>
 #include <stdio.h>
-#include <minix/rs.h>
-#include <minix/sysutil.h>
-#include <minix/callnr.h>
-#include <minix/endpoint.h>
+#include <stdlib.h>
+#include <unistd.h>
 #include <sys/types.h>
+#include <minix/const.h>
+#include <minix/type.h>
+#include <minix/syslib.h>
+#include <minix/sysutil.h>
+#include <minix/rs.h>
+#include <minix/callnr.h>
+#include <minix/calc.h>
+#include <minix/com.h>
+#include <minix/endpoint.h>
+#include <minix/safecopies.h>
+#include <minix/sys_config.h>
+#include <minix/vm.h>
+#include <minix/timers.h>
+#include <minix/sched.h>
+#include <signal.h>
+#include <string.h>
+#include <errno.h>
+#include <assert.h>
 
-// Function prototypes
-int do_add(int a, int b);
-int do_multiply(int a, int b);
+/* Function prototypes */
+static void calc_init(void);
+static void calc_work(void);
+static int do_add(message *m_ptr);
+static int do_multiply(message *m_ptr);
+static int kernel_multiply(int a, int b);
 
-int main(void) {
-    message m;
-    int result;
-
-    printf("Calc server started.\n");
-
-    while (TRUE) {
-        if (minix_receive(ANY, &m) != OK) {
-            printf("minix_receive error.\n");
-            continue;
-        }
-
-        switch (m.m_type) {
-            case CALC_ADD:
-                result = do_add(m.m1_i1, m.m1_i2);
-                m.m_type = result;
-                minix_send(m.m_source, &m);
-                break;
-
-            case CALC_MULTIPLY:
-                result = do_multiply(m.m1_i1, m.m1_i2);
-                m.m_type = result;
-                minix_send(m.m_source, &m);
-                break;
-
-            default:
-                printf("Unknown message type: %d\n", m.m_type);
-                break;
-        }
-    }
+/* Main function */
+int main(int argc, char **argv)
+{
+    calc_init();
+    calc_work();
     return 0;
 }
 
-// Function definitions
-int do_add(int a, int b) {
-    return a + b;
+/* Initialize the calc server */
+static void calc_init(void)
+{
+    /* Register with the system */
+    int r;
+    if ((r = sys_register("calc")) != OK) {
+        panic("calc: sys_register failed: %d\n", r);
+    }
+    printf("Calc server started\n");
 }
 
-int do_multiply(int a, int b) {
+/* Main work loop */
+static void calc_work(void)
+{
     message m;
-    m.m1_i1 = a;
-    m.m1_i2 = b;
-
-    // This is the kernel call to perform multiplication
-    int result = _kernel_call(SYS_MULTIPLY, &m);
-
-    if (result != OK) {
-        printf("Kernel call failed: %d\n", result);
-        return result;
+    int r;
+    endpoint_t src;
+    
+    while (TRUE) {
+        /* Wait for incoming messages */
+        if ((r = sef_receive(ANY, &m)) != OK) {
+            printf("calc: sef_receive failed: %d\n", r);
+            continue;
+        }
+        
+        src = m.m_source;
+        
+        /* Handle the message based on type */
+        switch (m.m_type) {
+            case CALC_ADD:
+                m.m_type = do_add(&m);
+                break;
+                
+            case CALC_MULTIPLY:
+                m.m_type = do_multiply(&m);
+                break;
+                
+            default:
+                m.m_type = EINVAL;
+                break;
+        }
+        
+        /* Send reply back to caller */
+        if ((r = send(src, &m)) != OK) {
+            printf("calc: send to %d failed: %d\n", src, r);
+        }
     }
+}
 
-    return m.m1_i3; // The result is returned in m1_i3
+/* Handle add operation */
+static int do_add(message *m_ptr)
+{
+    calc_message_t *calc_msg = (calc_message_t *)m_ptr;
+    calc_msg->result = calc_msg->num1 + calc_msg->num2;
+    return OK;
+}
+
+/* Handle multiply operation */
+static int do_multiply(message *m_ptr)
+{
+    calc_message_t *calc_msg = (calc_message_t *)m_ptr;
+    
+    /* Call kernel function for multiplication */
+    calc_msg->result = kernel_multiply(calc_msg->num1, calc_msg->num2);
+    
+    if (calc_msg->result < 0) {
+        return EINVAL;  /* Error in kernel call */
+    }
+    
+    return OK;
+}
+
+/* Kernel call wrapper for multiplication */
+static int kernel_multiply(int a, int b)
+{
+    message m;
+    int result;
+    
+    /* Prepare message for kernel call */
+    m.m_calc_lsys_multiply.num1 = a;
+    m.m_calc_lsys_multiply.num2 = b;
+    
+    /* Make kernel call */
+    if (_taskcall(SYSTASK, SYS_CALC_MULTIPLY, &m) != OK) {
+        return -1;
+    }
+    
+    return m.m_calc_lsys_multiply.result;
 }
