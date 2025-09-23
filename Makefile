@@ -1,10 +1,7 @@
-.include <bsd.own.mk>
+.include <bsd.prog.mk>
+.include <minix.server.mk>
 
-# Makefile for the CALC Server
-PROG=	calc
-SRCS=	main.c add.c multiply.c
+PROG= calc
+SRCS= main.c
 
-DPADD+=	${LIBSYS} ${LIBM}
-LDADD+=	-lsys -lm
-
-.include <minix.service.mk>
+.PATH: ${.CURDIR} ${.CURDIR}/..
