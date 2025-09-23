@@ -1,9 +1,7 @@
-.include <bsd.own.mk>
+PROG= sample
+SRCS= main.c
+DPADD+= ${LIBSYS} ${LIBSEF}
+LDADD+= -lsys -lsef
+BINDIR= /usr/sbin
 
-SUBDIR+=	calc ds input mib pm rs sched vfs vm
-
-.if ${MKIMAGEONLY} == "no"
-SUBDIR+=	ipc is devman
-.endif
-
-.include <bsd.subdir.mk>
+.include <minix.service.mk>
