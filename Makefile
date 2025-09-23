@@ -1,7 +1,7 @@
-.include <bsd.prog.mk>
-.include <minix.server.mk>
+# Makefile for calc server
 
-PROG= calc
 SRCS= main.c
 
-.PATH: ${.CURDIR} ${.CURDIR}/..
+CPPFLAGS += -D_SYSTEM
+
+.include <minix.service.mk>
