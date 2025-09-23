@@ -1,30 +1,91 @@
-#include "kernel/system.h"
+#include "inc.h"
+#include <minix/syslib.h>
+#include <minix/drivers.h>
+#include <minix/com.h>
 #include <minix/endpoint.h>
-#include <minix/sys_config.h>
+#include <minix/ipc.h>
+#include <stdio.h>
+#include <stdlib.h>
+
+/* Function prototypes. */
+static void sef_local_startup(void);
+static void sef_local_message_process(message *m, int call_type);
+int do_add(message *m);
+int do_multiply(message *m);
 
 /*===========================================================================*
- *                                do_sample                                  *
+ * main                                           *
  *===========================================================================*/
-int do_sample(struct proc *caller_ptr, message *m_ptr)
-{
-    endpoint_t target_ep;
-    struct proc *target_proc;
-    
-    /* Extract parameters from the message */
-    target_ep = m_ptr->m_lsys_krn_sample.endpoint;
-    
-    /* Find the target process */
-    if(!isokendpt(target_ep, &target_ep)) {
-        return EINVAL;  /* Invalid endpoint */
+int main(void) {
+    message m;
+    int ipc_status;
+    int call_nr, result;
+
+    /* SEF local startup. */
+    sef_local_startup();
+
+    /* Main loop - get work and do it, forever. */
+    while (TRUE) {
+        /* Wait for request message. */
+        if (sef_receive_status(ANY, &m, &ipc_status) != OK) {
+            continue;
+        }
+
+        /* Handle the request and send a reply to the caller. */
+        call_nr = m.m_type;
+        
+        switch (call_nr) {
+            case CALC_ADD:
+                result = do_add(&m);
+                break;
+            case CALC_MULTIPLY:
+                result = do_multiply(&m);
+                break;
+            default:
+                printf("CALC: warning: got unexpected request %d from %d\n",
+                       m.m_type, m.m_source);
+                result = ENOSYS;
+                break;
+        }
+        
+        if (result != EDONTREPLY) {
+            m.m_type = result;
+            reply(m.m_source, NULL, &m);
+        }
     }
-    
-    target_proc = proc_addr(target_ep);
-    
-    /* Do something useful - example: return process priority */
-    m_ptr->m_lsys_krn_sample.result = target_proc->p_priority;
-    
-    printf("do_sample: Called for process %d, priority: %d\n", 
-           target_ep, target_proc->p_priority);
-    
+
+    return 0;
+}
+
+---
+
+/*===========================================================================*
+ * sef_local_startup                                  *
+ *===========================================================================*/
+static void sef_local_startup() {
+    /* Register init callbacks. */
+    sef_setcb_init_fresh(sef_cb_init_fresh);
+    sef_setcb_init_restart(sef_cb_init_restart);
+    sef_setcb_init_lu(sef_cb_init_lu);
+
+    /* Let SEF perform startup. */
+    sef_startup();
+}
+
+/* Add the sef_cb_init_* functions and other supporting code as needed. */
+
+/*===========================================================================*
+ * do_add                                             *
+ *===========================================================================*/
+int do_add(message *m) {
+    /* Implementation for the add service will go here. */
+    return OK;
+}
+
+/*===========================================================================*
+ * do_multiply                                        *
+ *===========================================================================*/
+int do_multiply(message *m) {
+    /* Implementation for the multiply service will go here. */
     return OK;
 }
