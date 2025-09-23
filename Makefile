@@ -1,10 +1,8 @@
-# Makefile for Calculator Server (calc)
-.include <bsd.own.mk>
+# test_sample/Makefile
+PROG=   test_sample
+SRCS=   test_sample.c
 
-PROG=	calc
-SRCS=	main.c
+DPADD+= ${LIBSYS}
+LDADD+= -lsys
 
-DPADD+=	${LIBSYS}
-LDADD+=	-lsys
-
-.include <minix.service.mk>
+.include <minix.prog.mk>
